@@ -50,5 +50,5 @@ app.use((err,req,res,next)=>{
     res.send({messsage:"error message",payload : err.message})
 })
 
-const port = process.env.PORT || 5000
-app.listen(4000, console.log("server is running in port 4000"))
+const port = process.env.PORT
+app.listen(port, console.log("server is running in port",port))
