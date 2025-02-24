@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect ,useRef} from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
@@ -36,6 +36,7 @@ const OwnerHome = () => {
 
   const registrationForm = useForm();
   const detailsForm = useForm();
+  const tableRef = useRef(null); // ✅ Define the table reference
 
 
   const { register, handleSubmit, formState: { errors }, reset , watch } = useForm();
@@ -104,28 +105,80 @@ const OwnerHome = () => {
   };
 
   const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(data);
+    const table = tableRef.current;
+    if (!table) return; // Ensure the table exists
+  
+    // Clone the table and remove the last column (Profile column)
+    const tableClone = table.cloneNode(true);
+    const rows = tableClone.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+      const lastCell = row.querySelector('td:last-child, th:last-child');
+      if (lastCell) {
+        lastCell.remove(); // Remove last column (Profile column)
+      }
+    });
+  
+    // Convert the modified table to worksheet
+    const ws = XLSX.utils.table_to_sheet(tableClone);
+  
+    // Create a new workbook and append the worksheet
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Employees");
-
+    XLSX.utils.book_append_sheet(wb, ws, "Employee Data");
+  
+    // Write the Excel file as a binary string
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const dataBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    saveAs(dataBlob, "employees.xlsx");
+  
+    // Convert it to a Blob and trigger download
+    const dataBlob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+  
+    saveAs(dataBlob, "employee_data.xlsx");
   };
 
   // Function to Export to PDF
   const exportToPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({
+      orientation: "landscape", // Use landscape for better width
+      unit: "mm",
+      format: "a2", // Use A2 for a bigger page size (Can change to 'a1' if needed)
+    });
     doc.text("Employee Details", 20, 10);
 
-    const tableColumn = ["id", "name", "Age", "Department"];
-    const tableRows = data.map(item => [item.id, item.name, item.age, item.department]);
+    const tableColumn = [
+      "Name", "ID", "Cluster", "Service Center", "Daily Wage", "No of Days Present", "Total Wages",
+      "Basic", "Others", "Gross Wages", "PF", "ESIC", "Net Wages", "PF Emper", "ESIC Emp", "Total Cost",
+      "Service Charge", "Total Charges"
+    ];
+
+    const tableRows = empList.map(emp => {
+      // Calculations
+      const total_wages = Math.round(emp.dailyWage * emp.daysPresent);
+      const basic = Math.round((emp.basic / 30) * emp.daysPresent);
+      const others = Math.round(total_wages - basic);
+      const pf = Math.round((basic * 12) / 100);
+      const esic = Math.round((total_wages * 0.75) / 100);
+      const net_wages = Math.round(total_wages - pf - esic);
+      const pf_emper = Math.round((basic * 13) / 100);
+      const esic_emp = Math.round((total_wages * 3.25) / 100);
+      const total_cost = Math.round(total_wages + pf_emper + esic_emp);
+      const service_charge = Math.round((total_cost * 6) / 100);
+      const total_charges = Math.round(total_cost + service_charge);
+
+      return [
+        emp.name, emp.id, emp.cluster, emp.serviceCenter, emp.dailyWage, emp.daysPresent, total_wages,
+        basic, others, total_wages, pf, esic, net_wages, pf_emper, esic_emp, total_cost,
+        service_charge, total_charges
+      ];
+    });
 
     doc.autoTable({
       head: [tableColumn],
       body: tableRows,
       startY: 20,
     });
+
 
     doc.save("employees.pdf");
   };
@@ -339,7 +392,7 @@ const OwnerHome = () => {
         {empList.length>0 && (<div className="table-responsive">
           <h4 className="mb-3">Employee Details</h4>
               <div className="" style={{ maxHeight: '500px', overflowX: 'auto' }}>
-                <table className="table table-responsive table-striped table-hover table-light border-dark text-center">
+                <table ref={tableRef} className="table table-responsive table-striped table-hover table-light border-dark text-center">
                   {/* Sticky Table Header */}
                   <thead className="table-primary" style={{ position: 'sticky', top: 0 ,zIndex: 2 }}>
                     <tr>
@@ -383,24 +436,24 @@ const OwnerHome = () => {
 
                       return (
                         <tr key={emp.id} >
-                          <td>{emp.name}</td>
-                          <td>{emp.id}</td>
-                          <td>{emp.cluster}</td>
-                          <td>{emp.serviceCenter}</td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={emp.dailyWage} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={emp.daysPresent} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={total_wages} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={basic} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={others} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={total_wages} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={pf} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={esic} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={net_wages} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={pf_emper} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={esic_emp} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={total_cost} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={service_charge} readOnly /></td>
-                          <td><input type="number" className='form-control' style={{ width: '150px' }} value={total_charges} readOnly /></td>
+                          <td style={{ width: "150px" }}>{emp.name}</td>
+                          <td style={{ width: "150px" }}>{emp.id}</td>
+                          <td style={{ width: "150px" }}>{emp.cluster}</td>
+                          <td style={{ width: "150px" }}>{emp.serviceCenter}</td>
+                          <td style={{ width: "150px" }}>{emp.dailyWage}</td>
+                          <td style={{ width: "150px" }}>{emp.daysPresent} </td>
+                          <td style={{ width: "150px" }}>{total_wages} </td>
+                          <td style={{ width: "150px" }}>{basic} </td>
+                          <td style={{ width: "150px" }}>{others} </td>
+                          <td style={{ width: "150px" }}>{total_wages} </td>
+                          <td style={{ width: "150px" }}>{pf} </td>
+                          <td style={{ width: "150px" }}>{esic} </td>
+                          <td style={{ width: "150px" }}>{net_wages} </td>
+                          <td style={{ width: "150px" }}>{pf_emper} </td>
+                          <td style={{ width: "150px" }}>{esic_emp} </td>
+                          <td style={{ width: "150px" }}>{total_cost} </td>
+                          <td style={{ width: "150px" }}>{service_charge} </td>
+                          <td style={{ width: "150px" }}>{total_charges} </td>
 
                           {/* Sticky Last Column (Profile Button) */}
                           <td className="sticky-col" style={{ position: 'sticky', right: 0}}>
